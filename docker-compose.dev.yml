@@ -1,0 +1,42 @@
+# Docker Compose para desenvolvimento local
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: tv-redirect-dev
+    restart: unless-stopped
+    ports:
+      - "3950:3950"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://tv_redirect_user:tv_redirect_pass@tv-postgres:5432/tv_redirect_db
+      - REDIS_URL=redis://tv-redis:6379/12
+      - NEXT_PUBLIC_SITE_URL=http://localhost:3950
+      - NEXT_PUBLIC_ADSENSE_CLIENT=
+      - NEXT_PUBLIC_ADSENSE_SLOT=
+      - REDIRECT_DELAY_SECONDS=5
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - tv-redirect-network
+      - tv-postgres-network
+      - tv-redis-network
+      - tv-traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.redirect-dev.rule=Host(`redirect.localhost`)"
+      - "traefik.http.routers.redirect-dev.entrypoints=web"
+      - "traefik.http.services.redirect-dev.loadbalancer.server.port=3950"
+
+networks:
+  tv-redirect-network:
+    driver: bridge
+  tv-postgres-network:
+    external: true
+  tv-redis-network:
+    external: true
+  tv-traefik-network:
+    external: true

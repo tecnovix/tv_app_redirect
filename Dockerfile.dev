@@ -1,0 +1,19 @@
+# Dockerfile para desenvolvimento
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instala dependências de desenvolvimento
+RUN apk add --no-cache libc6-compat openssl openssl-dev
+
+COPY package.json package-lock.json* ./
+RUN npm install
+
+COPY prisma ./prisma
+RUN npx prisma generate
+
+COPY . .
+
+EXPOSE 3950
+
+CMD ["npm", "run", "dev"]

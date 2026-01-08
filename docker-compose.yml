@@ -1,0 +1,85 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tv-redirect-app
+    restart: unless-stopped
+    ports:
+      - "3950:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL:-postgresql://tv_redirect_user:tv_redirect_pass@tv-postgres:5432/tv_redirect_db}
+      - REDIS_URL=${REDIS_URL:-redis://tv-redis:6379/12}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://redirect.tecnovix.app}
+      - NEXT_PUBLIC_ADSENSE_CLIENT=${NEXT_PUBLIC_ADSENSE_CLIENT:-}
+      - NEXT_PUBLIC_ADSENSE_SLOT=${NEXT_PUBLIC_ADSENSE_SLOT:-}
+      - REDIRECT_DELAY_SECONDS=${REDIRECT_DELAY_SECONDS:-5}
+    networks:
+      - tv-redirect-network
+      - tv-postgres-network
+      - tv-redis-network
+      - tv-traefik-network
+    depends_on:
+      - postgres-init
+    labels:
+      - "traefik.enable=true"
+      # HTTPS Router
+      - "traefik.http.routers.redirect.rule=Host(`redirect.tecnovix.app`)"
+      - "traefik.http.routers.redirect.entrypoints=websecure"
+      - "traefik.http.routers.redirect.tls=true"
+      - "traefik.http.routers.redirect.tls.certresolver=letsencrypt"
+      # HTTP Router (redirect to HTTPS)
+      - "traefik.http.routers.redirect-http.rule=Host(`redirect.tecnovix.app`)"
+      - "traefik.http.routers.redirect-http.entrypoints=web"
+      - "traefik.http.routers.redirect-http.middlewares=redirect-https"
+      # Middlewares
+      - "traefik.http.middlewares.redirect-https.redirectscheme.scheme=https"
+      # Service
+      - "traefik.http.services.redirect.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Inicializa o banco de dados (roda uma vez)
+  postgres-init:
+    image: postgres:16-alpine
+    container_name: tv-redirect-db-init
+    environment:
+      - PGHOST=tv-postgres
+      - PGUSER=postgres
+      - PGPASSWORD=${POSTGRES_PASSWORD:-postgres}
+    networks:
+      - tv-postgres-network
+    command: >
+      sh -c "
+        until pg_isready; do
+          echo 'Waiting for PostgreSQL...'
+          sleep 2
+        done
+
+        # Cria usuário e banco se não existirem
+        psql -c \"SELECT 1 FROM pg_roles WHERE rolname='tv_redirect_user'\" | grep -q 1 || \
+          psql -c \"CREATE USER tv_redirect_user WITH PASSWORD 'tv_redirect_pass'\"
+
+        psql -c \"SELECT 1 FROM pg_database WHERE datname='tv_redirect_db'\" | grep -q 1 || \
+          psql -c \"CREATE DATABASE tv_redirect_db OWNER tv_redirect_user\"
+
+        psql -c \"GRANT ALL PRIVILEGES ON DATABASE tv_redirect_db TO tv_redirect_user\"
+
+        echo 'Database initialized!'
+      "
+    restart: "no"
+
+networks:
+  tv-redirect-network:
+    driver: bridge
+  tv-postgres-network:
+    external: true
+  tv-redis-network:
+    external: true
+  tv-traefik-network:
+    external: true

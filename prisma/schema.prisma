@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tipos de redirecionamento
+enum RedirectType {
+  DIRECT      // Redirecionamento direto (sem página intermediária)
+  MONETIZED   // Com página intermediária + AdSense
+  COUNTDOWN   // Com countdown antes do redirect
+}
+
+// Fonte do link (de onde veio)
+enum LinkSource {
+  BLOG        // Artigos do blog tecnovix.com.br
+  YOUTUBE     // Descrição/cards do YouTube
+  INSTAGRAM   // Bio/stories do Instagram
+  LINKEDIN    // Posts do LinkedIn
+  EMAIL       // Campanhas de email
+  WHATSAPP    // Mensagens do WhatsApp Bot
+  EVENTO      // Páginas de eventos
+  GESTOR      // Sistema de gestão
+  API         // Criado via API externa
+  MANUAL      // Criado manualmente
+}
+
+// Link de redirecionamento
+model RedirectLink {
+  id            String       @id @default(uuid())
+  code          String       @unique              // Short code (abc123)
+  targetUrl     String                            // URL de destino final
+
+  // Metadados do conteúdo
+  title         String?                           // Título do conteúdo externo
+  description   String?      @db.Text             // Descrição curta
+  commentary    String?      @db.Text             // Análise/comentário Tecnovix (2 parágrafos)
+  imageUrl      String?                           // Imagem de preview
+
+  // Configuração do redirect
+  redirectType  RedirectType @default(MONETIZED)  // Tipo de redirecionamento
+  delaySeconds  Int          @default(5)          // Tempo antes do redirect automático
+  showAds       Boolean      @default(true)       // Mostrar AdSense
+
+  // Origem e rastreamento
+  source        LinkSource   @default(MANUAL)     // De onde veio o link
+  sourceApp     String?                           // App de origem (tv_app_wp, tv_app_gestor)
+  sourceUrl     String?                           // URL da página de origem
+  campaign      String?                           // UTM campaign ou identificador
+
+  // Estatísticas
+  clicks        Int          @default(0)          // Total de cliques
+  uniqueClicks  Int          @default(0)          // Cliques únicos (por IP)
+
+  // Controle
+  isActive      Boolean      @default(true)       // Link ativo
+  expiresAt     DateTime?                         // Data de expiração (opcional)
+  password      String?                           // Proteção por senha (opcional)
+
+  // Timestamps
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relacionamentos
+  clickEvents   ClickEvent[]
+
+  @@index([code])
+  @@index([targetUrl])
+  @@index([source])
+  @@index([sourceApp])
+  @@index([campaign])
+  @@index([createdAt])
+  @@index([isActive])
+}
+
+// Evento de clique (analytics detalhado)
+model ClickEvent {
+  id            String       @id @default(uuid())
+  linkId        String
+  link          RedirectLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  // Dados do visitante
+  ip            String?                           // IP do visitante (anonimizado)
+  userAgent     String?      @db.Text             // User agent completo
+  referer       String?                           // Referer da requisição
+
+  // Geolocalização (via IP)
+  country       String?                           // País (BR, US, etc)
+  region        String?                           // Estado/Região
+  city          String?                           // Cidade
+
+  // Device info (parsed do User Agent)
+  deviceType    String?                           // desktop, mobile, tablet
+  browser       String?                           // Chrome, Firefox, Safari
+  os            String?                           // Windows, macOS, iOS, Android
+
+  // UTM Parameters
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  utmTerm       String?
+  utmContent    String?
+
+  // Comportamento
+  waitedFull    Boolean      @default(false)      // Esperou o countdown completo
+  clickedButton Boolean      @default(false)      // Clicou no botão manualmente
+  timeOnPage    Int?                              // Tempo na página (segundos)
+
+  // Timestamp
+  clickedAt     DateTime     @default(now())
+
+  @@index([linkId])
+  @@index([clickedAt])
+  @@index([ip])
+  @@index([country])
+  @@index([deviceType])
+  @@index([utmSource])
+}
+
+// Configurações globais do sistema
+model Settings {
+  id                    String   @id @default("default")
+
+  // AdSense
+  adsenseClientId       String?                   // ca-pub-XXXXXXXX
+  adsenseSlotId         String?                   // Slot padrão
+
+  // Configurações padrão
+  defaultDelaySeconds   Int      @default(5)
+  defaultShowAds        Boolean  @default(true)
+  defaultRedirectType   RedirectType @default(MONETIZED)
+
+  // Branding
+  siteName              String   @default("Tecnovix")
+  siteUrl               String   @default("https://tecnovix.com.br")
+  logoUrl               String?
+
+  // Analytics
+  posthogKey            String?
+  posthogHost           String?
+
+  // Timestamps
+  updatedAt             DateTime @updatedAt
+}
+
+// API Keys para integração com outros apps
+model ApiKey {
+  id            String   @id @default(uuid())
+  name          String                             // Nome descritivo (tv_app_wp, tv_app_gestor)
+  key           String   @unique                   // Hash da API key
+
+  // Permissões
+  canCreate     Boolean  @default(true)
+  canRead       Boolean  @default(true)
+  canUpdate     Boolean  @default(false)
+  canDelete     Boolean  @default(false)
+
+  // Rate limiting
+  rateLimit     Int      @default(100)             // Requests por minuto
+
+  // Controle
+  isActive      Boolean  @default(true)
+  lastUsedAt    DateTime?
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([key])
+  @@index([isActive])
+}
