@@ -91,10 +91,10 @@ export async function GET(request: NextRequest) {
 
       // Cliques por dia (últimos 30 dias)
       prisma.$queryRaw<{ date: string; count: bigint }[]>`
-        SELECT DATE(clicked_at) as date, COUNT(*) as count
+        SELECT DATE("clickedAt") as date, COUNT(*) as count
         FROM "ClickEvent"
-        WHERE clicked_at >= ${thirtyDaysAgo}
-        GROUP BY DATE(clicked_at)
+        WHERE "clickedAt" >= ${thirtyDaysAgo}
+        GROUP BY DATE("clickedAt")
         ORDER BY date DESC
         LIMIT 30
       `,

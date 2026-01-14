@@ -246,10 +246,10 @@ export async function getLinkStats(code: string): Promise<{
   const [clicksByDay, topCountries, topDevices, topReferers] = await Promise.all([
     // Cliques por dia
     prisma.$queryRaw<{ date: string; count: bigint }[]>`
-      SELECT DATE(clicked_at) as date, COUNT(*) as count
+      SELECT DATE("clickedAt") as date, COUNT(*) as count
       FROM "ClickEvent"
-      WHERE link_id = ${link.id} AND clicked_at >= ${thirtyDaysAgo}
-      GROUP BY DATE(clicked_at)
+      WHERE "linkId" = ${link.id} AND "clickedAt" >= ${thirtyDaysAgo}
+      GROUP BY DATE("clickedAt")
       ORDER BY date DESC
     `,
 
