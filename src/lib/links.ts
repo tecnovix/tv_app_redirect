@@ -148,14 +148,15 @@ export async function recordClick(
   // Verifica se é visitante único
   const isUnique = data.ip ? await trackUniqueVisitor(linkCode, data.ip) : true
 
-  // Salva evento detalhado no banco (async, não bloqueia)
-  prisma.clickEvent
-    .create({
+  try {
+    // Salva evento detalhado no banco
+    await prisma.clickEvent.create({
       data: {
         linkId,
         ip: data.ip,
         userAgent: data.userAgent,
         referer: data.referer,
+        accessUrl: data.accessUrl,
         country: data.country,
         region: data.region,
         city: data.city,
@@ -172,17 +173,19 @@ export async function recordClick(
         timeOnPage: data.timeOnPage,
       },
     })
-    .then(() => {
-      // Atualiza contadores no banco (eventual consistency)
-      prisma.redirectLink.update({
-        where: { id: linkId },
-        data: {
-          clicks: { increment: 1 },
-          ...(isUnique ? { uniqueClicks: { increment: 1 } } : {}),
-        },
-      })
+
+    // Atualiza contadores no banco (agora executa corretamente)
+    await prisma.redirectLink.update({
+      where: { id: linkId },
+      data: {
+        clicks: { increment: 1 },
+        ...(isUnique ? { uniqueClicks: { increment: 1 } } : {}),
+      },
     })
-    .catch(console.error)
+  } catch (error) {
+    console.error('Error recording click:', error)
+    // Não re-lança o erro para não bloquear o redirect do usuário
+  }
 }
 
 // Lista links com filtros

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { redis } from '@/lib/redis'
+import { getGeoStats } from '@/lib/analytics'
 
 export async function GET() {
   const checks = {
@@ -10,6 +11,7 @@ export async function GET() {
       database: false,
       redis: false,
     },
+    geo: getGeoStats(),
   }
 
   try {

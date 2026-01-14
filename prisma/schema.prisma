@@ -86,6 +86,7 @@ model ClickEvent {
   ip            String?                           // IP do visitante (anonimizado)
   userAgent     String?      @db.Text             // User agent completo
   referer       String?                           // Referer da requisição
+  accessUrl     String?                           // URL completa de acesso (com UTMs)
 
   // Geolocalização (via IP)
   country       String?                           // País (BR, US, etc)

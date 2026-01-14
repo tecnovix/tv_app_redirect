@@ -84,10 +84,11 @@ export default function RedirectPage({ link }: RedirectPageProps) {
           waitedFull,
           clickedButton: !waitedFull,
           timeOnPage,
+          accessUrl: typeof window !== 'undefined' ? window.location.href : undefined,
         }),
       })
-    } catch {
-      // Ignore
+    } catch (error) {
+      console.error('Tracking error:', error)
     }
 
     window.location.href = link.targetUrl
